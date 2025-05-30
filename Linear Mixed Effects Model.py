@@ -1,35 +1,83 @@
 import pandas as pd
 import itertools
 import seaborn as sns
+
+import matplotlib
+matplotlib.use('TkAgg')  # Must be set before importing pyplot
 import matplotlib.pyplot as plt
 import statsmodels.formula.api as smf
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 import statsmodels.api as sm
 from scipy.stats import chi2
+import numpy as np
+
+# === LOAD CSV AND GENERATE FEATURES FOR USER SETTINGS ===
+csv_path = r'C:\Users\cartlimr\OneDrive - Prince William County Public Schools\Vaughan Elementary Case Study - 2025\Data from Christina\Second Pull\Vaughn Query_Student Dataset_20250530.csv'  # Replace with your file
+df = pd.read_csv(csv_path)
+df['school_classroom'] = df['School_2021'].astype(str) + '_' + df['Teacher_2021'].astype(str)  # group_var
+# Identify reassigned students
+df['reassigned'] = np.where(df['School_1819'] != df['School_2021'], 1, 0)
+# Generate dummy variable for SPED
+df['spedDummy'] = np.where(df['SPED'] == 'Y', 1, 0)
+# Generate dummy variable for Gifted
+df['giftedDummy'] = np.where(df['Gifted Recode'] == 'Y', 1, 0)
+
+# === ONE-HOT ENCODING FOR CATEGORICAL VARIABLES ===
+#categorical_features = ['Gender', '1819 EL', '2021 EL', 'LunchStatus', 'Race Recode', 'HomeLanguage']
+categorical_features = ['Gender', 'EL_1819', 'EL_2021', 'LunchStatus', 'Race Recode']
+df = pd.get_dummies(df, columns=categorical_features, drop_first=True)
+
+
+# === DATASET CLEANSING ===
+# Replace all spaces in column names with underscores
+df.columns = df.columns.str.replace(' ', '_')
+# Drop students not enrolled in 2021
+df = df.dropna(subset=['School_2021'])
+# Select only 3rd graders from 2018-19
+df = df[(df['Grade_1819'] == 3)]
+# Select only Vaughan ES students
+df = df[df['School_2021'] == 'Vaughan ES']
+
+
 
 # === USER SETTINGS ===
-csv_path = 'your_data.csv'  # Replace with your file
-outcome_var = 'outcome'  # Dependent variable name
-group_var = 'subject'  # Random effects group
+outcome_var = 'Math_2021'  # Dependent variable name
+group_var = 'school_classroom'  # Random effects group
 subset_col = 'reassigned'  # Column indicating subset group (e.g., 1 = reassigned, 0 = not)
-exclude_cols = [outcome_var, group_var, subset_col]  # Exclude from explanatory vars
+exclude_cols = [outcome_var, group_var, subset_col, categorical_features, 'School_1819', 'School_2021',
+       'Teacher_1819', 'Grade_1819', 'Teacher_2021', 'Grade_2021', 'SPED',
+       'Gifted_Recode', 'HomeLanguage']  # Exclude from explanatory vars
 
-# === LOAD CSV AND CREATE SUBSETS ===
-df = pd.read_csv(csv_path)
 
+# === CREATE SUBSETS ===
 subset1 = df[df[subset_col] == 0]  # Not reassigned
 subset2 = df[df[subset_col] == 1]  # Reassigned
 
 # === CORRELATION MATRIX ===
 corr = df.corr(numeric_only=True)
-plt.figure(figsize=(10, 8))
-sns.heatmap(corr, annot=True, cmap='coolwarm', center=0, fmt=".2f", cbar_kws={'label': 'Correlation'})
-plt.title('Correlation Matrix')
+plt.figure(figsize=(50, 30))
+heatmap = sns.heatmap(corr, annot=True, cmap='coolwarm', center=0, fmt=".2f", cbar_kws={'label': 'Correlation'}, annot_kws={"size": 20})
+# Extract color bar
+cbar = heatmap.collections[0].colorbar
+# Increase the size of the color bar label
+cbar.set_label('Correlation', size=30)
+# Increase the size of the color bar tick labels
+cbar.ax.tick_params(labelsize=20)
+# Increase the size of the labels on the x-axis and y-axis:
+plt.xticks(fontsize=20)
+plt.yticks(fontsize=20)
+plt.title('Correlation Matrix - Enrolled 5th Graders at Vaughan ES (SY2020-21)', fontsize=50)
 plt.tight_layout()
-plt.show()
+# Save the plot as an image file
+plt.savefig("plot.png")
+
 
 # === MODEL COMBINATIONS ===
 explanatory_vars = [col for col in df.columns if col not in exclude_cols and pd.api.types.is_numeric_dtype(df[col])]
+
+# subset only first 3 explanatory variables from explanatory_vars
+#explanatory_vars = explanatory_vars[:3]
+
 
 results = []
 
@@ -45,6 +93,8 @@ for i in range(1, len(explanatory_vars) + 1):
             })
         except Exception as e:
             print(f"Skipping combo {combo} due to error: {e}")
+
+
 
 # === RANKED OUTPUT ===
 results = sorted(results, key=lambda x: x['aic'])
