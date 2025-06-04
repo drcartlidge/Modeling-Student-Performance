@@ -13,6 +13,7 @@ import numpy as np
 from collections.abc import Iterable
 from patsy import dmatrix
 import pickle
+import scipy.stats as stats
 
 # === LOAD CSV AND GENERATE FEATURES FOR USER SETTINGS ===
 csv_path = r'C:\Users\cartlimr\OneDrive - Prince William County Public Schools\Vaughan Elementary Case Study - 2025\Data from Christina\Second Pull\Vaughn Query_Student Dataset_20250530.csv'  # Replace with your file
@@ -324,7 +325,7 @@ result_df.to_csv("model_results_r2_sorted.csv", index=False)
 # analyze VIFs for top ranked models by marginal r-squared
 multicollinearity_check('Marginal r-squared')
 
-# === LIKELIHOOD RATIO TEST ===
+# === LIKELIHOOD RATIO TEST BASED ON CHI-SQUARED DISTRIBUTION ===
 print("\n=== Likelihood Ratio Test: Subset Comparison ===")
 
 # Use the best variable combination - set index from the order in the results list
@@ -377,5 +378,106 @@ if ll_combined is not None and ll1 is not None and ll2 is not None:
 else:
     print("Likelihood ratio test could not be completed due to model fitting errors.")
 
+# === ASSUMPTION CHECKS FOR SELECTED LINEAR MIXED EFFECTS MODEL ===
+# pull out the residuals
+residuals = combined_result.resid
+fitted_vals = combined_result.fittedvalues
+
+# check for linearity
+sns.scatterplot(x=fitted_vals, y=residuals)
+plt.xlabel('Fitted values')
+plt.ylabel('Residuals')
+plt.title('Residuals vs Fitted values')
+plt.show()
+plt.savefig("Residuals vs Fitted values.png")
+# A random scatter in the first plot would suggest linearity.
+
+# check for homoscedasticity using a scatter plot
+sns.scatterplot(x=fitted_vals, y=np.sqrt(np.abs(residuals)))
+plt.xlabel('Fitted values')
+plt.ylabel('sqrt(abs(Residuals))')
+plt.title('Scale-Location')
+plt.show()
+plt.savefig("Scale-Location.png")
+# A random scatter around a horizontal line at zero in the second plot would suggest homoscedasticity.
+
+# check for normality of residuals
+sns.histplot(residuals, kde=True)
+plt.xlabel('Residuals')
+plt.title('Distribution of Residuals')
+plt.show()
+plt.savefig("Distribution of Residuals.png")
+# In the histogram, if residuals are normally distributed, they will follow the outlined 'bell curve' closely.
+
+# perform a normal Q-Q plot of residuals
+fig = plt.figure()
+ax = fig.add_subplot(111)
+stats.probplot(residuals, dist="norm", plot=ax)
+plt.title("Normal Q-Q plot")
+plt.show()
+plt.savefig("Normal Q-Q plot.png")
+# In the QQ-plot, if residuals are normally distributed, they will follow the line closely.
+
+# === LIKELIHOOD RATIO TEST BASED ON PARAMETRIC BOOTSTRAP ===
+# Bootstrap parameters
+n_bootstrap_samples = 1000
+lr_stats = np.zeros(n_bootstrap_samples)
+
+# Store the original outcome variable
+original_outcome = df[outcome_var].copy()
+
+# Generate bootstrap samples
+for i in range(n_bootstrap_samples):
+    # Generate bootstrap sample
+    bootstrap_sample = np.random.choice(original_outcome, size=len(original_outcome), replace=True)
+
+    # Update outcome variable with bootstrap sample
+    df[outcome_var] = bootstrap_sample
+    subset1[outcome_var] = bootstrap_sample[subset1.index]
+    subset2[outcome_var] = bootstrap_sample[subset2.index]
+
+    # Same model fitting as before
+    try:
+        combined_model = smf.mixedlm(combined_formula, data=df, groups=df[group_var])
+        combined_result = combined_model.fit(reml=False)
+        ll_combined = combined_result.llf
+    except Exception as e:
+        print(f"Error fitting combined model: {e}")
+        ll_combined = None
+
+    try:
+        model1 = smf.mixedlm(f"{outcome_var} ~ {' + '.join(best_vars)}", data=subset1, groups=subset1[group_var])
+        result1 = model1.fit(reml=False)
+        ll1 = result1.llf
+    except Exception as e:
+        print(f"Error fitting model for subset 1: {e}")
+        ll1 = None
+
+    try:
+        model2 = smf.mixedlm(f"{outcome_var} ~ {' + '.join(best_vars)}", data=subset2, groups=subset2[group_var])
+        result2 = model2.fit(reml=False)
+        ll2 = result2.llf
+    except Exception as e:
+        print(f"Error fitting model for subset 2: {e}")
+        ll2 = None
+
+    # Only calculate LR stat if all log-likelihoods are valid
+    if ll_combined is not None and ll1 is not None and ll2 is not None:
+        ll_separate = ll1 + ll2
+        lr_stats[i] = 2 * (ll_separate - ll_combined)
+
+# Restore the original outcome variable
+df[outcome_var] = original_outcome
+subset1[outcome_var] = original_outcome[subset1.index]
+subset2[outcome_var] = original_outcome[subset2.index]
+
+# Now calculate bootstrap p-value
+p_value_bootstrap = np.mean(lr_stats >= lr_stat)
+
+print(f"Bootstrap p-value: {p_value_bootstrap:.4f}")
+if p_value_bootstrap < 0.05:
+    print("→ Bootstrapping: Reject null hypothesis: model coefficients differ significantly between subsets.")
+else:
+    print("→ Bootstrapping: Fail to reject null hypothesis: no significant difference between subsets.")
 # Save to hard drive the model, after running for large models.
 autosave()
