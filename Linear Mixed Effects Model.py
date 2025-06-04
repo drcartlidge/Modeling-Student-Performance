@@ -379,44 +379,46 @@ else:
     print("Likelihood ratio test could not be completed due to model fitting errors.")
 
 # === ASSUMPTION CHECKS FOR SELECTED LINEAR MIXED EFFECTS MODEL ===
-# pull out the residuals
-residuals = combined_result.resid
-fitted_vals = combined_result.fittedvalues
+model_result_names = [result2]  # [combined_result, result1, result2] --- cycle through manually and update plt.titles below
+for model in model_result_names:
+    # pull out the residuals
+    residuals = model.resid
+    fitted_vals = model.fittedvalues
 
-# check for linearity
-sns.scatterplot(x=fitted_vals, y=residuals)
-plt.xlabel('Fitted values')
-plt.ylabel('Residuals')
-plt.title('Residuals vs Fitted values')
-plt.show()
-plt.savefig("Residuals vs Fitted values.png")
-# A random scatter in the first plot would suggest linearity.
+    # check for linearity
+    sns.scatterplot(x=fitted_vals, y=residuals)
+    plt.xlabel('Fitted values')
+    plt.ylabel('Residuals')
+    plt.title('Residuals vs Fitted values (Reassigned)')
+    plt.show()
+    plt.savefig("Residuals vs Fitted values.png")
+    # A random scatter in the first plot would suggest linearity.
 
-# check for homoscedasticity using a scatter plot
-sns.scatterplot(x=fitted_vals, y=np.sqrt(np.abs(residuals)))
-plt.xlabel('Fitted values')
-plt.ylabel('sqrt(abs(Residuals))')
-plt.title('Scale-Location')
-plt.show()
-plt.savefig("Scale-Location.png")
-# A random scatter around a horizontal line at zero in the second plot would suggest homoscedasticity.
+    # check for homoscedasticity using a scatter plot
+    sns.scatterplot(x=fitted_vals, y=np.sqrt(np.abs(residuals)))
+    plt.xlabel('Fitted values')
+    plt.ylabel('sqrt(abs(Residuals))')
+    plt.title('Scale-Location (Reassigned)')
+    plt.show()
+    plt.savefig("Scale-Location.png")
+    # A random scatter around a horizontal line at zero in the second plot would suggest homoscedasticity.
 
-# check for normality of residuals
-sns.histplot(residuals, kde=True)
-plt.xlabel('Residuals')
-plt.title('Distribution of Residuals')
-plt.show()
-plt.savefig("Distribution of Residuals.png")
-# In the histogram, if residuals are normally distributed, they will follow the outlined 'bell curve' closely.
+    # check for normality of residuals
+    sns.histplot(residuals, kde=True)
+    plt.xlabel('Residuals')
+    plt.title('Distribution of Residuals (Reassigned)')
+    plt.show()
+    plt.savefig("Distribution of Residuals.png")
+    # In the histogram, if residuals are normally distributed, they will follow the outlined 'bell curve' closely.
 
-# perform a normal Q-Q plot of residuals
-fig = plt.figure()
-ax = fig.add_subplot(111)
-stats.probplot(residuals, dist="norm", plot=ax)
-plt.title("Normal Q-Q plot")
-plt.show()
-plt.savefig("Normal Q-Q plot.png")
-# In the QQ-plot, if residuals are normally distributed, they will follow the line closely.
+    # perform a normal Q-Q plot of residuals
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    stats.probplot(residuals, dist="norm", plot=ax)
+    plt.title("Normal Q-Q plot (Reassigned)")
+    plt.show()
+    plt.savefig("Normal Q-Q plot.png")
+    # In the QQ-plot, if residuals are normally distributed, they will follow the line closely.
 
 # === LIKELIHOOD RATIO TEST BASED ON PARAMETRIC BOOTSTRAP ===
 # Bootstrap parameters
