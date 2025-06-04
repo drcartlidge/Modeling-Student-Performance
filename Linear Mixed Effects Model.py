@@ -99,6 +99,29 @@ print(missing_data)
 subset1 = df[df[subset_col] == 0]  # Not reassigned
 subset2 = df[df[subset_col] == 1]  # Reassigned
 
+# === DESCRIPTIVE STATISTICS ON SAMPLES ===
+# df descriptive statistics
+df_describe = df.describe(include='all')
+print(df_describe)
+
+# subset1 descriptive statistics
+subset1_describe = subset1.describe(include='all')
+print(subset1_describe)
+
+# subset2 descriptive statistics
+subset2_describe = subset2.describe(include='all')
+print(subset2_describe)
+
+# Save these statistics to text files
+with open('df_stats.txt', 'w') as f:
+    f.write(df_describe.to_string())
+
+with open('subset1_stats.txt', 'w') as f:
+    f.write(subset1_describe.to_string())
+
+with open('subset2_stats.txt', 'w') as f:
+    f.write(subset2_describe.to_string())
+
 # === CORRELATION MATRIX ===
 corr = df.corr(numeric_only=True)
 plt.figure(figsize=(50, 30))
@@ -338,6 +361,11 @@ combined_formula = f"{outcome_var} ~ {interaction_terms}"
 try:
     combined_model = smf.mixedlm(combined_formula, data=df, groups=df[group_var])
     combined_result = combined_model.fit(reml=False)
+    combined_result_summary = combined_result.summary()
+    print(combined_result_summary)
+    with open('combined_model_summary.txt', 'w') as f:
+        f.write(combined_result_summary.as_text())
+
     ll_combined = combined_result.llf
 except Exception as e:
     print(f"Error fitting combined model: {e}")
@@ -347,6 +375,10 @@ except Exception as e:
 try:
     model1 = smf.mixedlm(f"{outcome_var} ~ {' + '.join(best_vars)}", data=subset1, groups=subset1[group_var])
     result1 = model1.fit(reml=False)
+    result1_summary = result1.summary()
+    print(result1_summary)
+    with open('result1_model_summary.txt', 'w') as f:
+        f.write(result1_summary.as_text())
     ll1 = result1.llf
 except Exception as e:
     print(f"Error fitting model for subset 1: {e}")
@@ -355,6 +387,10 @@ except Exception as e:
 try:
     model2 = smf.mixedlm(f"{outcome_var} ~ {' + '.join(best_vars)}", data=subset2, groups=subset2[group_var])
     result2 = model2.fit(reml=False)
+    result2_summary = result2.summary()
+    print(result2_summary)
+    with open('result2_model_summary.txt', 'w') as f:
+        f.write(result2_summary.as_text())
     ll2 = result2.llf
 except Exception as e:
     print(f"Error fitting model for subset 2: {e}")
