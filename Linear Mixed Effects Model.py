@@ -99,7 +99,7 @@ print(missing_data)
 subset1 = df[df[subset_col] == 0]  # Not reassigned
 subset2 = df[df[subset_col] == 1]  # Reassigned
 
-# === DESCRIPTIVE STATISTICS ON SAMPLES ===
+# === DESCRIPTIVE STATISTICS ON STUDENT SAMPLES ===
 # df descriptive statistics
 df_describe = df.describe(include='all')
 print(df_describe)
