@@ -353,6 +353,7 @@ print("\n=== Likelihood Ratio Test: Subset Comparison ===")
 
 # Use the best variable combination - set index from the order in the results list
 best_vars = list(results[2]['variables'])
+print(best_vars)
 
 # 1. Combined Model with interaction terms
 interaction_terms = ' + '.join([f'{var}*{subset_col}' for var in best_vars])
@@ -386,7 +387,7 @@ except Exception as e:
 
 try:
     model2 = smf.mixedlm(f"{outcome_var} ~ {' + '.join(best_vars)}", data=subset2, groups=subset2[group_var])
-    result2 = model2.fit(reml=False)
+    result2 = model2.fit(reml=False, maxiter=1000)
     result2_summary = result2.summary()
     print(result2_summary)
     with open('result2_model_summary.txt', 'w') as f:
@@ -415,7 +416,7 @@ else:
     print("Likelihood ratio test could not be completed due to model fitting errors.")
 
 # === ASSUMPTION CHECKS FOR SELECTED LINEAR MIXED EFFECTS MODEL ===
-model_result_names = [result2]  # [combined_result, result1, result2] --- cycle through manually and update plt.titles below
+model_result_names = [combined_result]  # [combined_result, result1, result2] --- cycle through manually and update plt.titles below
 for model in model_result_names:
     # pull out the residuals
     residuals = model.resid
