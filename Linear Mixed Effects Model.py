@@ -412,6 +412,9 @@ print(reduced_result.summary())
 reduced_result_summary = reduced_result.summary()
 with open('reduced_model_summary.txt', 'w') as f:
     f.write(reduced_result_summary.as_text())
+marginal_r2_reduced, conditional_r2_reduced = calculate_r_squared(reduced_result)
+print(f'reduced model marginal r-squared: {marginal_r2_reduced}')
+print(f'reduced model conditional r-squared: {conditional_r2_reduced}')
 ll_reduced = reduced_result.llf
 df_reduced = reduced_result.df_modelwc
 
