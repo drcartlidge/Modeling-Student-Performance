@@ -364,15 +364,17 @@ try:
     combined_result = combined_model.fit(reml=False)
     combined_result_summary = combined_result.summary()
     print(combined_result_summary)
-    with open('combined_model_summary.txt', 'w') as f:
+    with open('combined_model_with_interactions_summary.txt', 'w') as f:
         f.write(combined_result_summary.as_text())
-
+    df_combined = combined_result.df_modelwc
     ll_combined = combined_result.llf
 except Exception as e:
     print(f"Error fitting combined model: {e}")
     ll_combined = None
 
 # 2. Separate models for subset1 and subset2
+# 2. Reduced Model without interactions of school reassignment
+"""
 try:
     model1 = smf.mixedlm(f"{outcome_var} ~ {' + '.join(best_vars)}", data=subset1, groups=subset1[group_var])
     result1 = model1.fit(reml=False)
@@ -396,8 +398,25 @@ try:
 except Exception as e:
     print(f"Error fitting model for subset 2: {e}")
     ll2 = None
+"""
+# Add group indicator as a main effect (but no interactions)
+main_effects = ' + '.join(best_vars + [subset_col])
+reduced_formula = f"{outcome_var} ~ {main_effects}"
+
+# Fit the reduced (null) model
+reduced_model = smf.mixedlm(reduced_formula, data=df, groups=df[group_var])
+reduced_result = reduced_model.fit(reml=False)
+
+# Save or print result
+print(reduced_result.summary())
+reduced_result_summary = reduced_result.summary()
+with open('reduced_model_summary.txt', 'w') as f:
+    f.write(reduced_result_summary.as_text())
+ll_reduced = reduced_result.llf
+df_reduced = reduced_result.df_modelwc
 
 # 3. Likelihood Ratio Test
+"""
 if ll_combined is not None and ll1 is not None and ll2 is not None:
     ll_separate = ll1 + ll2
     lr_stat = 2 * (ll_separate - ll_combined)
@@ -414,11 +433,30 @@ if ll_combined is not None and ll1 is not None and ll2 is not None:
         print("→ Fail to reject null hypothesis: no significant difference between subsets.")
 else:
     print("Likelihood ratio test could not be completed due to model fitting errors.")
+"""
+# Calculate test statistic and p-value
+lr_stat = 2 * (ll_combined - ll_reduced)
+df_diff = df_combined - df_reduced
+p_value = chi2.sf(lr_stat, df_diff)
+
+# Print results
+print(f"\nLikelihood Ratio Test Statistic: {lr_stat:.2f}")
+print(f"Degrees of Freedom: {df_diff}")
+print(f"P-Value: {p_value:.4f}")
+
+if p_value < 0.05:
+    print("→ Reject null hypothesis: model coefficients differ significantly between subgroups.")
+else:
+    print("→ Fail to reject null hypothesis: no significant difference between subgroups.")
+
+
 
 # === ASSUMPTION CHECKS FOR SELECTED LINEAR MIXED EFFECTS MODEL ===
-model_result_names = [combined_result]  # [combined_result, result1, result2] --- cycle through manually and update plt.titles below
+model_result_names = [combined_result]  # [combined_result, reduced_result] --- cycle through manually and update plt.titles below
 for model in model_result_names:
     # pull out the residuals
+    residuals2 = combined_result.resid
+    fitted_vals2 = combined_result.fittedvalues
     residuals = model.resid
     fitted_vals = model.fittedvalues
 
@@ -458,6 +496,7 @@ for model in model_result_names:
     # In the QQ-plot, if residuals are normally distributed, they will follow the line closely.
 
 # === LIKELIHOOD RATIO TEST BASED ON PARAMETRIC BOOTSTRAP ===
+"""
 # Bootstrap parameters
 n_bootstrap_samples = 1000
 lr_stats = np.zeros(n_bootstrap_samples)
@@ -466,6 +505,7 @@ lr_stats = np.zeros(n_bootstrap_samples)
 original_outcome = df[outcome_var].copy()
 
 # Generate bootstrap samples
+
 for i in range(n_bootstrap_samples):
     # Generate bootstrap sample
     bootstrap_sample = np.random.choice(original_outcome, size=len(original_outcome), replace=True)
@@ -518,5 +558,40 @@ if p_value_bootstrap < 0.05:
     print("→ Bootstrapping: Reject null hypothesis: model coefficients differ significantly between subsets.")
 else:
     print("→ Bootstrapping: Fail to reject null hypothesis: no significant difference between subsets.")
+"""
+
+
+n_bootstrap_samples = 1000
+lr_stats = []
+
+# Store original LRT statistic
+original_combined = smf.mixedlm(combined_formula, data=df, groups=df[group_var]).fit(reml=False)
+original_reduced = smf.mixedlm(reduced_formula, data=df, groups=df[group_var]).fit(reml=False)
+original_lr_stat = 2 * (original_combined.llf - original_reduced.llf)
+
+for i in range(n_bootstrap_samples):
+    # Resample entire rows (preserving structure)
+    bootstrap_df = df.sample(n=len(df), replace=True)
+
+    try:
+        boot_combined = smf.mixedlm(combined_formula, data=bootstrap_df, groups=bootstrap_df[group_var]).fit(reml=False)
+        boot_reduced = smf.mixedlm(reduced_formula, data=bootstrap_df, groups=bootstrap_df[group_var]).fit(reml=False)
+        D_star = 2 * (boot_combined.llf - boot_reduced.llf)
+        lr_stats.append(D_star)
+    except Exception as e:
+        print(f"Bootstrap iteration {i} failed: {e}")
+        continue
+
+# Compute empirical p-value
+lr_stats = np.array(lr_stats)
+p_value_bootstrap = np.mean(lr_stats >= original_lr_stat)
+
+print(f"\nOriginal LR statistic: {original_lr_stat:.2f}")
+print(f"Bootstrap p-value: {p_value_bootstrap:.4f}")
+
+if p_value_bootstrap < 0.05:
+    print("→ Bootstrapping: Reject null hypothesis — significant group differences.")
+else:
+    print("→ Bootstrapping: Fail to reject null hypothesis — no significant group differences.")
 # Save to hard drive the model, after running for large models.
 autosave()
