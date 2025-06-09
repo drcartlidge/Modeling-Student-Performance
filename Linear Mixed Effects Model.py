@@ -372,33 +372,8 @@ except Exception as e:
     print(f"Error fitting combined model: {e}")
     ll_combined = None
 
-# 2. Separate models for subset1 and subset2
 # 2. Reduced Model without interactions of school reassignment
-"""
-try:
-    model1 = smf.mixedlm(f"{outcome_var} ~ {' + '.join(best_vars)}", data=subset1, groups=subset1[group_var])
-    result1 = model1.fit(reml=False)
-    result1_summary = result1.summary()
-    print(result1_summary)
-    with open('result1_model_summary.txt', 'w') as f:
-        f.write(result1_summary.as_text())
-    ll1 = result1.llf
-except Exception as e:
-    print(f"Error fitting model for subset 1: {e}")
-    ll1 = None
 
-try:
-    model2 = smf.mixedlm(f"{outcome_var} ~ {' + '.join(best_vars)}", data=subset2, groups=subset2[group_var])
-    result2 = model2.fit(reml=False, maxiter=1000)
-    result2_summary = result2.summary()
-    print(result2_summary)
-    with open('result2_model_summary.txt', 'w') as f:
-        f.write(result2_summary.as_text())
-    ll2 = result2.llf
-except Exception as e:
-    print(f"Error fitting model for subset 2: {e}")
-    ll2 = None
-"""
 # Add group indicator as a main effect (but no interactions)
 main_effects = ' + '.join(best_vars + [subset_col])
 reduced_formula = f"{outcome_var} ~ {main_effects}"
@@ -418,25 +393,8 @@ print(f'reduced model conditional r-squared: {conditional_r2_reduced}')
 ll_reduced = reduced_result.llf
 df_reduced = reduced_result.df_modelwc
 
-# 3. Likelihood Ratio Test
-"""
-if ll_combined is not None and ll1 is not None and ll2 is not None:
-    ll_separate = ll1 + ll2
-    lr_stat = 2 * (ll_separate - ll_combined)
-    df_diff = (result1.df_modelwc + result2.df_modelwc) - combined_result.df_modelwc
-    p_value = chi2.sf(lr_stat, df_diff)
+# 3. Likelihood Ratio Test Using Chi-squared distribution
 
-    print(f"\nLikelihood Ratio Test Statistic: {lr_stat:.2f}")
-    print(f"Degrees of Freedom: {df_diff}")
-    print(f"P-Value: {p_value:.4f}")
-
-    if p_value < 0.05:
-        print("→ Reject null hypothesis: model coefficients differ significantly between subsets.")
-    else:
-        print("→ Fail to reject null hypothesis: no significant difference between subsets.")
-else:
-    print("Likelihood ratio test could not be completed due to model fitting errors.")
-"""
 # Calculate test statistic and p-value
 lr_stat = 2 * (ll_combined - ll_reduced)
 df_diff = df_combined - df_reduced
@@ -499,70 +457,6 @@ for model in model_result_names:
     # In the QQ-plot, if residuals are normally distributed, they will follow the line closely.
 
 # === LIKELIHOOD RATIO TEST BASED ON PARAMETRIC BOOTSTRAP ===
-"""
-# Bootstrap parameters
-n_bootstrap_samples = 1000
-lr_stats = np.zeros(n_bootstrap_samples)
-
-# Store the original outcome variable
-original_outcome = df[outcome_var].copy()
-
-# Generate bootstrap samples
-
-for i in range(n_bootstrap_samples):
-    # Generate bootstrap sample
-    bootstrap_sample = np.random.choice(original_outcome, size=len(original_outcome), replace=True)
-
-    # Update outcome variable with bootstrap sample
-    df[outcome_var] = bootstrap_sample
-    subset1[outcome_var] = bootstrap_sample[subset1.index]
-    subset2[outcome_var] = bootstrap_sample[subset2.index]
-
-    # Same model fitting as before
-    try:
-        combined_model = smf.mixedlm(combined_formula, data=df, groups=df[group_var])
-        combined_result = combined_model.fit(reml=False)
-        ll_combined = combined_result.llf
-    except Exception as e:
-        print(f"Error fitting combined model: {e}")
-        ll_combined = None
-
-    try:
-        model1 = smf.mixedlm(f"{outcome_var} ~ {' + '.join(best_vars)}", data=subset1, groups=subset1[group_var])
-        result1 = model1.fit(reml=False)
-        ll1 = result1.llf
-    except Exception as e:
-        print(f"Error fitting model for subset 1: {e}")
-        ll1 = None
-
-    try:
-        model2 = smf.mixedlm(f"{outcome_var} ~ {' + '.join(best_vars)}", data=subset2, groups=subset2[group_var])
-        result2 = model2.fit(reml=False)
-        ll2 = result2.llf
-    except Exception as e:
-        print(f"Error fitting model for subset 2: {e}")
-        ll2 = None
-
-    # Only calculate LR stat if all log-likelihoods are valid
-    if ll_combined is not None and ll1 is not None and ll2 is not None:
-        ll_separate = ll1 + ll2
-        lr_stats[i] = 2 * (ll_separate - ll_combined)
-
-# Restore the original outcome variable
-df[outcome_var] = original_outcome
-subset1[outcome_var] = original_outcome[subset1.index]
-subset2[outcome_var] = original_outcome[subset2.index]
-
-# Now calculate bootstrap p-value
-p_value_bootstrap = np.mean(lr_stats >= lr_stat)
-
-print(f"Bootstrap p-value: {p_value_bootstrap:.4f}")
-if p_value_bootstrap < 0.05:
-    print("→ Bootstrapping: Reject null hypothesis: model coefficients differ significantly between subsets.")
-else:
-    print("→ Bootstrapping: Fail to reject null hypothesis: no significant difference between subsets.")
-"""
-
 
 n_bootstrap_samples = 1000
 lr_stats = []
